@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free-style Gomoku</title>
+    <script src="./socket.io.js"></script>
+    <script src="./lodash.min.js"></script>
+    <script src="./axios.min.js"></script>
+</head>
+
+<body>
+    <form onsubmit="start()">
+        <label for="grids">Board size:</label>
+        <select id="grids">
+            <option>11 x 11</option>
+            <option>15 x 15</option>
+        </select>
+        <br>
+        <label for="opponent">Opponent: </label>
+        <select id="opponent">
+            <option>player</option>
+            <option value="server/random">random</option>
+            <option value="server/decision-tree">decision-tree</option>
+            <option>q-learning</option>
+        </select>
+        <br>
+        <input type="submit" value="Start">
+    </form>
+    <p style="color: #f00" id="scoreboard">WIN(S): 0, LOSS(ES): 0, TIE(S): 0, SUM: 0</p>
+    <canvas id="board"></canvas>
+</body>
+<script>
+    const GRID_LEN = 40;
+    const scoreboard = { 'WIN(S)': 0, 'LOSS(ES)': 0, 'TIE(S)': 0, SUM: 0 };
+    let socket;
+
+
+    class Board {
+        constructor(element, [boardX, boardY], gridLen) {
+            this.boardX = boardX;
+            this.boardY = boardY;
+            this.gridLen = gridLen;
+            element.width = (boardX + 1) * gridLen;
+            element.height = (boardY + 1) * gridLen;
+
+            this.ctx = element.getContext('2d');
+
+            this.table = [...Array(boardX)].map(() => Array(boardY).fill(0));
+        }
+
+        draw() {
+            const { boardX, boardY, gridLen, ctx } = this;
+
+            ctx.beginPath();
+
+            for (let i = 1; i <= boardY; ++i) {
+                ctx.moveTo(gridLen / 2, gridLen * (i - .5));
+                ctx.lineTo(gridLen * (boardX - .5), gridLen * (i - .5));
+            }
+
+            for (let i = 1; i <= boardX; ++i) {
+                ctx.moveTo(gridLen * (i - .5), gridLen / 2);
+                ctx.lineTo(gridLen * (i - .5), gridLen * (boardY - .5));
+            }
+
+            ctx.stroke();
+        }
+
+        place([i, j], isFirst) {
+            const { gridLen, ctx, table } = this;
+            table[i][j] = (isFirst ^ 1) + 1;
+
+            ctx.beginPath();
+            ctx.arc((i + .5) * gridLen, (j + .5) * gridLen, gridLen / 3, 0, 2 * Math.PI);
+            ctx.fillStyle = isFirst ? '#000' : '#fff';
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        getTable() {
+            return this.table;
+        }
+
+        getNextTable([i, j], order) {
+            if (this.table[i][j]) return [];
+            const nextTable = JSON.parse(JSON.stringify(this.table));
+            nextTable[i][j] = order + 1;
+            return nextTable;
+        }
+    }
+
+    class QLearningAgent {
+        constructor(actions) {
+            this.learningRate = 0.1;
+            this.discountFactor = 0.7;
+            this.qTable = new Proxy({}, {
+                get: (_, property) => axios.get(`/q-table/${property}`).data || Array(actions).fill(0)
+            });
+        }
+
+        async learn(state, action, reward, nextState) {
+            const currentQ = (await this.qTable[state])[action];
+            const newQ = reward + this.discountFactor * _.max(await this.qTable[nextState]);
+            axios.post(`/q-table/${state}`, { value: { ...await this.qTable[state], [action]: (await this.qTable[state])[action] + this.learningRate * (newQ - currentQ) } });
+        }
+
+        async getAction(state) {
+            return this.argMax(await this.qTable[state]);
+        }
+
+        argMax(stateAction) {
+            const max = _.max(stateAction);
+            const maxIndexes = _.reduce(stateAction, (acc, cur, i) => {
+                if (cur === max) acc.push(i);
+                return acc;
+            }, []);
+            return maxIndexes[_.random(maxIndexes.length - 1)];
+        }
+    }
+
+    function start() {
+        event.preventDefault();
+
+        const grids = document.getElementById('grids').value.split(' x ').map(val => ~~val);
+        const agent = new QLearningAgent(grids.reduce((p, m) => p * m, 1));
+        if (socket) socket.close();
+        socket = io(`/${document.getElementById('opponent').value}`, { query: { grids } });
+
+        socket.on('connect', () => {
+            const boardElement = document.getElementById('board');
+            const board = new Board(boardElement, grids, GRID_LEN);
+
+            socket.on('found', (order, id) => {
+                board.draw();
+
+                if (!order) socket.emit('place', grids.map(val => ~~(val / 2)));
+
+                if (id) socket.emit('found pong', id, order);
+
+                socket.on('place', (pos, first) => board.place(pos, first));
+
+                let lastState, lastAction;
+                socket.on('ur turn', async () => {
+                    const state = [order, ..._.flatten(board.getTable())];
+                    if (lastState)
+                        agent.learn(lastState, lastAction, 0, state);
+
+                    let action, realAction, nextState;
+                    do {
+                        action = await agent.getAction(state);
+                        realAction = [(action - action % grids[0]) / grids[0], action % grids[0]];
+                        nextState = _.flatten(board.getNextTable(realAction, order));
+                    } while (!nextState.length)
+
+                    lastAction = action;
+                    lastState = state;
+
+                    socket.emit('place', realAction);
+                });
+
+                socket.on('over', result => {
+                    socket.close();
+
+                    ++scoreboard.SUM;
+                    switch (result) {
+                        case -1:
+                            ++scoreboard['TIE(S)'];
+                            break;
+                        case 1:
+                        case 2:
+                            ++scoreboard[order + 1 === result ? 'WIN(S)' : 'LOSS(ES)'];
+                            break;
+                    }
+                    document.getElementById('scoreboard').innerHTML = _.map(scoreboard, (value, key) => `${key}: ${value}`).join(', ');
+
+                    const reward = result + 1 ? result - 1 === lastState[0] ? 1000 : -1000 : 0;
+                    agent.learn(lastState, lastAction, reward, [lastState[0], ...board.getTable()]);
+                    start();
+                });
+            });
+        });
+    }
+</script>
+
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free-style Gomoku</title>
+    <script src="./socket.io.js"></script>
+    <script src="./lodash.min.js"></script>
+</head>
+
+<body>
+    <form onsubmit="start()">
+        <label for="grids">Board size:</label>
+        <select id="grids">
+            <option>11 x 11</option>
+            <option>15 x 15</option>
+        </select>
+        <br>
+        <label for="opponent">Opponent: </label>
+        <select id="opponent">
+            <option>player</option>
+            <option value="server/random">random</option>
+            <option value="server/decision-tree">decision-tree</option>
+            <option>q-learning</option>
+        </select>
+        <br>
+        <input type="submit" value="Start">
+    </form>
+    <p style="color: #f00" id="scoreboard">WIN(S): 0, LOSS(ES): 0, TIE(S): 0, SUM: 0</p>
+    <p style="color: #f00" id="ur" hidden>WAITING FOR A PLAYER...</p>
+    <canvas id="board"></canvas>
+    <p style="color: #f00" id="ur-turn" hidden>Your turn!</p>
+</body>
+<script>
+    const GRID_LEN = 40;
+    const scoreboard = { 'WIN(S)': 0, 'LOSS(ES)': 0, 'TIE(S)': 0, SUM: 0 };
+    let socket;
+
+
+    class Board {
+        constructor(element, [boardX, boardY], gridLen) {
+            this.boardX = boardX;
+            this.boardY = boardY;
+            this.gridLen = gridLen;
+            element.width = (boardX + 1) * gridLen;
+            element.height = (boardY + 1) * gridLen;
+
+            this.ctx = element.getContext('2d');
+
+            this.table = [...Array(boardX)].map(() => Array(boardY).fill(0));
+        }
+
+        draw() {
+            const { boardX, boardY, gridLen, ctx } = this;
+
+            ctx.beginPath();
+
+            for (let i = 1; i <= boardY; ++i) {
+                ctx.moveTo(gridLen / 2, gridLen * (i - .5));
+                ctx.lineTo(gridLen * (boardX - .5), gridLen * (i - .5));
+            }
+
+            for (let i = 1; i <= boardX; ++i) {
+                ctx.moveTo(gridLen * (i - .5), gridLen / 2);
+                ctx.lineTo(gridLen * (i - .5), gridLen * (boardY - .5));
+            }
+
+            ctx.stroke();
+        }
+
+        place([i, j], color) {
+            const { gridLen, ctx, table } = this;
+            table[i][j] = (color ^ 1) + 1;
+
+            ctx.beginPath();
+            ctx.arc((i + .5) * gridLen, (j + .5) * gridLen, gridLen / 3, 0, 2 * Math.PI);
+            ctx.fillStyle = color ? '#000' : '#fff';
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        getTable() {
+            return this.table;
+        }
+    }
+
+    function start() {
+        event.preventDefault();
+
+        const grids = document.getElementById('grids').value.split(' x ').map(val => ~~val);
+        if (socket) socket.close();
+        socket = io(`/${document.getElementById('opponent').value}`, { query: { grids } });
+        document.getElementById('ur').hidden = false;
+
+        socket.on('connect', () => {
+            const boardElement = document.getElementById('board');
+            const board = new Board(boardElement, grids, GRID_LEN);
+
+            socket.on('found', (order, id) => {
+
+                board.draw();
+                document.getElementById('ur').innerText = `YOU ARE ${order ? 'WHITE' : 'BLACK'}.`;
+                if (!order) document.getElementById('ur-turn').hidden = false;
+
+                boardElement.addEventListener('mousedown', ({ offsetX, offsetY }) => {
+                    const x = offsetX / GRID_LEN - .5;
+                    const y = offsetY / GRID_LEN - .5;
+                    const [i, j] = [x - ~~x > .5 ? ~~x + 1 : ~~x, y - ~~y > .5 ? ~~y + 1 : ~~y]
+
+                    if (!board.getTable()[i][j]) {
+                        socket.emit('place', [i, j]);
+                    }
+                }, false);
+
+                if (id) socket.emit('found pong', id, order);
+
+                socket.on('place', (pos, first) => {
+                    board.place(pos, first);
+                    document.getElementById('ur-turn').hidden = true;
+                });
+
+                socket.on('ur turn', () => document.getElementById('ur-turn').hidden = false);
+
+                socket.on('over', result => {
+                    socket.close();
+
+                    ++scoreboard.SUM;
+                    let resultText;
+                    switch (result) {
+                        case -1:
+                            ++scoreboard['TIE(S)'];
+                            resultText = 'THERE ARE NO WINNER!';
+                            break;
+                        case 1:
+                            ++scoreboard[order + 1 === result ? 'WIN(S)' : 'LOSS(ES)'];
+                            resultText = 'BLACK WINS!';
+                            break;
+                        case 2:
+                            ++scoreboard[order + 1 === result ? 'WIN(S)' : 'LOSS(ES)'];
+                            resultText = 'WHITE WINS!';
+                            break;
+                    }
+                    document.getElementById('scoreboard').innerHTML = _.map(scoreboard, (value, key) => `${key}: ${value}`).join(', ') + '<br>GAME OVER, ' + resultText;
+                });
+            });
+        });
+    }
+</script>
+
+</html>
