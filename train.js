@@ -84,7 +84,7 @@ setInterval(() => {
       socket.on('ur turn', async () => {
         if (state) agent.learn(state, action, 0, nextState);
 
-        state = `${board.getTable().toString()}:${order}`;
+        state = `${board.getTable()}:${order}`;
         do {
           action = await agent.getAction(state);
           realAction = [~~(action / grids[0]), action % grids[0]];
