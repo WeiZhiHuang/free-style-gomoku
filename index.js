@@ -117,13 +117,13 @@ serv.on('connection', socket => {
   socket.emit('ur turn');
 
   socket.on('place', ([i, j]) => {
-    let win;
+    let result;
 
     if (!table[i][j]) {
       table[i][j] = !(isFirst ^ 1) + 1;
 
-      if (win = judge([X, Y], table)) {
-        socket.emit('over', win);
+      if (result = judge([X, Y], table)) {
+        socket.emit('over', result);
         socket.disconnect();
         return;
       }
@@ -143,8 +143,8 @@ serv.on('connection', socket => {
       }
       table[x][y] = (isFirst ^ 1) + 1;
 
-      if (win = judge([X, Y], table)) {
-        socket.emit('over', win);
+      if (result = judge([X, Y], table)) {
+        socket.emit('over', result);
         socket.disconnect();
       } else socket.emit('ur turn');
     }
