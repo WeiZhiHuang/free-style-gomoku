@@ -43,7 +43,7 @@ class QLearningAgent {
     const currQ = (await this.qTable[state])[action];
     const nextQ = reward + this.discountFactor * max(await this.qTable[nextState]);
     const newQ = currQ + this.learningRate * (nextQ - currQ);
-    client.hset(state, action, newQ);
+    if (newQ) client.hset(state, action, newQ);
   }
 
   async getAction(state) {
