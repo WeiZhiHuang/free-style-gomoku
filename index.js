@@ -145,7 +145,6 @@ serv.on('connection', socket => {
       if (win = judge([X, Y], table)) {
         socket.emit('over', win);
         socket.disconnect();
-        return;
       } else socket.emit('ur turn');
     }
   });
