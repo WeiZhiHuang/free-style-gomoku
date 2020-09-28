@@ -40,9 +40,10 @@ class QLearningAgent {
   }
 
   async learn(state, action, reward, nextState) {
-    const currentQ = (await this.qTable[state])[action];
-    const newQ = reward + this.discountFactor * max(await this.qTable[nextState]);
-    client.hset([state.toString(), action, currentQ + this.learningRate * (newQ - currentQ)]);
+    const currQ = (await this.qTable[state])[action];
+    const nextQ = reward + this.discountFactor * max(await this.qTable[nextState]);
+    const newQ = currQ + this.learningRate * (nextQ - currQ);
+    if (newQ) client.hset(state, action, newQ);
   }
 
   async getAction(state) {
@@ -79,22 +80,16 @@ setInterval(() => {
 
       socket.on('place', (pos, isFirst) => board.place(pos, isFirst));
 
-      let lastState, lastAction;
+      let state, action, nextState;
       socket.on('ur turn', async () => {
-        const state = [order, ...flatten(board.getTable())];
+        if (state) agent.learn(state, action, 0, nextState);
 
-        if (lastState)
-          await agent.learn(lastState, lastAction, 0, state);
-
-        let action, realAction, nextState;
         do {
+          state = `${board.getTable().toString()}:${order}`;
           action = await agent.getAction(state);
-          realAction = [(action - action % grids[0]) / grids[0], action % grids[0]];
-          nextState = flatten(board.getNextTable(realAction, order));
-        } while (!nextState.length);
-
-        lastState = state;
-        lastAction = action;
+          realAction = [~~(action / grids[0]), action % grids[0]];
+          nextState = `${board.getNextTable(realAction, order)}:${order}`;
+        } while (nextState.length === 2);
 
         socket.emit('place', realAction);
       });
@@ -117,7 +112,7 @@ setInterval(() => {
         console.log(map(scoreboard, (value, key) => `${key}: ${value}`).join(', '));
 
         if (result > 0)
-          agent.learn(lastState, lastAction, result - 1 === lastState[0] ? 1000 : -1000, [lastState[0], ...board.getTable()]);
+          agent.learn(state, action, result - 1 === order ? 1000 : -1000, nextState);
       });
     });
   });
