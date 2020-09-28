@@ -146,9 +146,7 @@ serv.on('connection', socket => {
         socket.emit('over', win);
         socket.disconnect();
         return;
-      }
-
-      socket.emit('ur turn');
+      } else socket.emit('ur turn');
     }
   });
 });
