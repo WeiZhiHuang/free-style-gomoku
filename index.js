@@ -88,13 +88,14 @@ pvp.on('connection', socket => {
       if (result = judge([X, Y], tables[room])) {
         pvp.in(room).emit('over', result);
         socket.disconnect();
-        delete tables[room];
       } else {
         orders[room] = last ^ 1;
         socket.to(room).emit('ur turn');
       }
     }
   });
+
+  socket.on('disconnect', () => delete tables[room]);
 });
 
 serv.on('connection', socket => {
