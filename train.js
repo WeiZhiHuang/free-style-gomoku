@@ -29,8 +29,8 @@ class Board {
 
 class QLearningAgent {
   constructor(actions) {
-    this.learningRate = 0.1;
-    this.discountFactor = 0.7;
+    this.learningRate = 0.01;
+    this.discountFactor = 0.9;
     this.qTable = new Proxy({}, {
       get: async (_, property) => reduce(await client.hgetall(property), (acc, cur, i) => {
         acc[i] = ~~cur;
