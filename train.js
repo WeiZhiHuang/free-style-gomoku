@@ -3,7 +3,7 @@ const io = require('socket.io-client');
 const asyncRedis = require("async-redis");
 const client = asyncRedis.createClient();
 
-const { max, reduce, random, flatten, map } = require('lodash');
+const { max, reduce, toNumber, random, map } = require('lodash');
 
 
 class Board {
@@ -33,7 +33,7 @@ class QLearningAgent {
     this.discountFactor = 0.9;
     this.qTable = new Proxy({}, {
       get: async (_, property) => reduce(await client.hgetall(property), (acc, cur, i) => {
-        acc[i] = ~~cur;
+        acc[i] = toNumber(cur);
         return acc;
       }, Array(actions).fill(0))
     });
@@ -43,7 +43,7 @@ class QLearningAgent {
     const currQ = (await this.qTable[state])[action];
     const nextQ = reward + this.discountFactor * max(await this.qTable[nextState]);
     const newQ = currQ + this.learningRate * (nextQ - currQ);
-    if (newQ) client.hset(state, action, newQ);
+    client.hset(state, action, newQ);
   }
 
   async getAction(state) {
