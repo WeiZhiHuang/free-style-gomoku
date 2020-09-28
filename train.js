@@ -43,7 +43,7 @@ class QLearningAgent {
     const currQ = (await this.qTable[state])[action];
     const nextQ = reward + this.discountFactor * max(await this.qTable[nextState]);
     const newQ = currQ + this.learningRate * (nextQ - currQ);
-    if (newQ) client.hset(state, action, newQ);
+    client.hset(state, action, newQ);
   }
 
   async getAction(state) {
@@ -109,8 +109,8 @@ setInterval(() => {
         }
         scoreboard['WIN/SUM'] = `${scoreboard['WIN(S)'] / scoreboard['SUM']}`.slice(0, 6);
 
-        if (!(scoreboard['SUM'] % 1000))
-          console.log(map(scoreboard, (value, key) => `${key}: ${value}`).join(', '));
+        console.clear();
+        console.log(map(scoreboard, (value, key) => `${key}: ${value}`).join(', '));
 
         if (result > 0)
           agent.learn(state, action, result - 1 === order ? 1000 : -1000, nextState);
