@@ -1,7 +1,7 @@
 const io = require('socket.io-client');
 
-const asyncRedis = require("async-redis");
-const client = asyncRedis.createClient();
+const redis = require('redis');
+const client = redis.createClient();
 
 const { reduce, toNumber, max, random, map } = require('lodash');
 
