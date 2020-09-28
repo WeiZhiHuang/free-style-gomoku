@@ -116,7 +116,7 @@ setInterval(() => {
         console.clear();
         console.log(map(scoreboard, (value, key) => `${key}: ${value}`).join(', '));
 
-	if (result > 0)
+        if (result > 0)
           agent.learn(lastState, lastAction, result - 1 === lastState[0] ? 1000 : -1000, [lastState[0], ...board.getTable()]);
       });
     });
