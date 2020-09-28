@@ -58,14 +58,10 @@ class QLearningAgent {
     }, []);
     return maxIndexes[random(maxIndexes.length - 1)];
   }
-
-  getQTable(state) {
-    return this.qTable[state];
-  }
 }
 
 
-const scoreboard = { 'WIN(S)': 0, 'LOSS(ES)': 0, 'TIE(S)': 0, SUM: 0, 'WIN/SUM': NaN };
+const scoreboard = { 'WIN(S)': 0, 'LOSS(ES)': 0, 'TIE(S)': 0, SUM: 0, 'WIN/(SUM-TIE(S))': NaN };
 const grids = process.argv[2].split('x').map(val => ~~val);
 const agent = new QLearningAgent(grids[0] * grids[1]);
 setInterval(() => {
@@ -73,7 +69,7 @@ setInterval(() => {
 
   socket.on('connect', () => {
     socket.on('found', (order, id) => {
-      const board = new Board(grids, order);
+      const board = new Board(grids);
 
       if (id) socket.emit('found pong', id, order);
       if (!order) socket.emit('place', grids.map(val => ~~(val / 2)));
@@ -97,7 +93,7 @@ setInterval(() => {
       socket.on('over', result => {
         socket.close();
 
-        ++scoreboard.SUM;
+        ++scoreboard['SUM'];
         switch (result) {
           case -1:
             ++scoreboard['TIE(S)'];
@@ -107,7 +103,7 @@ setInterval(() => {
             ++scoreboard[order + 1 === result ? 'WIN(S)' : 'LOSS(ES)'];
             break;
         }
-        scoreboard['WIN/SUM'] = `${scoreboard['WIN(S)'] / scoreboard['SUM']}`.slice(0, 6);
+        scoreboard['WIN/(SUM-TIE(S))'] = `${scoreboard['WIN(S)'] / (scoreboard['SUM'] - scoreboard['TIE(S)'])}`.slice(0, 6);
 
         console.clear();
         console.log(map(scoreboard, (value, key) => `${key}: ${value}`).join(', '));
