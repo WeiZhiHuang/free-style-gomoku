@@ -34,7 +34,7 @@ class QLearningAgent {
     this.qTable = new Proxy({}, {
       get: async (_, property) => reduce(await client.hgetall(property), (acc, cur, i) => {
         acc[i] = ~~cur;
-        return acc
+        return acc;
       }, Array(actions).fill(0))
     });
   }
