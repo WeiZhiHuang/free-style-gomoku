@@ -65,7 +65,7 @@ class QLearningAgent {
 }
 
 
-const scoreboard = { 'WIN(S)': 0, 'LOSS(ES)': 0, 'TIE(S)': 0, SUM: 0 };
+const scoreboard = { 'WIN(S)': 0, 'LOSS(ES)': 0, 'TIE(S)': 0, SUM: 0, 'WIN/LOSS': NaN };
 const grids = process.argv[2].split('x').map(val => ~~val);
 const agent = new QLearningAgent(grids[0] * grids[1]);
 setInterval(() => {
@@ -107,6 +107,7 @@ setInterval(() => {
             ++scoreboard[order + 1 === result ? 'WIN(S)' : 'LOSS(ES)'];
             break;
         }
+        scoreboard['WIN/LOSS'] = `${scoreboard['WIN(S)'] / scoreboard['LOSS(ES)']}`.slice(0, 4);
 
         console.clear();
         console.log(map(scoreboard, (value, key) => `${key}: ${value}`).join(', '));
