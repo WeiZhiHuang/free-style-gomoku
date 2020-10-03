@@ -1,0 +1,18 @@
+Q-learning
+1. 關於actions
+    1. 自學actions（negative reward when duplicate）
+    2. 環境給予actions
+2. 關於reward
+    1. Reward without negative
+    2. Reward evaluation function
+    3. Normal steps with tiny negative reward (may meet some problems)
+3. 關於next state
+    1. 不納入對手action
+    2. 納入對手action
+4. 關於random
+    1. 無
+    2. 有
+
+index.html: add q-learning
+index.js: add qlearning, remove bodyparser and route
+q-learning vs q-learning
